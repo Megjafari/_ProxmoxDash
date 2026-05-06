@@ -1,3 +1,15 @@
+// Jarvis AI chat endpoint — currently disabled.
+//
+// The OllamaClient implementation works, but llama3.1:8b on CPU
+// produces unacceptable response times (60-180s per request).
+//
+// To re-enable in the future:
+//   1. Uncomment this controller
+//   2. Re-add builder.Services.AddOllamaClient(builder.Configuration) in Program.cs
+//   3. Either run Ollama on a GPU host, switch to a smaller model,
+//      or swap IOllamaClient to a cloud provider (OpenAI, Anthropic, etc.)
+
+/*
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProxmoxDash.Core.Interfaces;
@@ -46,3 +58,4 @@ public class JarvisController : ControllerBase
 }
 
 public record ChatRequest(string Prompt);
+*/

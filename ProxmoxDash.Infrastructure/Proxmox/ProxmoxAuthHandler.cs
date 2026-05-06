@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 
-
 namespace ProxmoxDash.Infrastructure.Proxmox;
 
 public class ProxmoxAuthHandler : DelegatingHandler
@@ -15,7 +14,7 @@ public class ProxmoxAuthHandler : DelegatingHandler
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        request.Headers.Add("Authorization", $"PVEAPIToken={_token}");
+        request.Headers.TryAddWithoutValidation("Authorization", $"PVEAPIToken={_token}");
         return base.SendAsync(request, cancellationToken);
     }
 }
