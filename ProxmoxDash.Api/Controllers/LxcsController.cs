@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using ProxmoxDash.Core.Interfaces;
 using ProxmoxDash.Core.Models;
 
 namespace ProxmoxDash.Api.Controllers;
@@ -9,10 +10,12 @@ namespace ProxmoxDash.Api.Controllers;
 public class LxcsController : ControllerBase
 {
     private readonly IMemoryCache _cache;
+    private readonly IProxmoxClient _proxmoxClient;
 
-    public LxcsController(IMemoryCache cache)
+    public LxcsController(IMemoryCache cache, IProxmoxClient proxmoxClient)
     {
         _cache = cache;
+        _proxmoxClient = proxmoxClient;
     }
 
     [HttpGet]
@@ -24,5 +27,26 @@ public class LxcsController : ControllerBase
         }
 
         return Ok(Array.Empty<VmInfo>());
+    }
+
+    [HttpPost("{node}/{vmId:int}/start")]
+    public async Task<IActionResult> StartLxc(string node, int vmId)
+    {
+        await _proxmoxClient.StartLxcAsync(node, vmId);
+        return Accepted();
+    }
+
+    [HttpPost("{node}/{vmId:int}/stop")]
+    public async Task<IActionResult> StopLxc(string node, int vmId)
+    {
+        await _proxmoxClient.StopLxcAsync(node, vmId);
+        return Accepted();
+    }
+
+    [HttpPost("{node}/{vmId:int}/restart")]
+    public async Task<IActionResult> RestartLxc(string node, int vmId)
+    {
+        await _proxmoxClient.RestartLxcAsync(node, vmId);
+        return Accepted();
     }
 }
