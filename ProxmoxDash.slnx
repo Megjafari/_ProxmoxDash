@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ProxmoxDash.Api/ProxmoxDash.Api.csproj" />
+  <Project Path="ProxmoxDash.Core/ProxmoxDash.Core.csproj" />
+  <Project Path="ProxmoxDash.Infrastructure/ProxmoxDash.Infrastructure.csproj" />
+</Solution>
