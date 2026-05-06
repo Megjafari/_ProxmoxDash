@@ -11,7 +11,7 @@ public static class OllamaServiceExtensions
         services.AddHttpClient<IOllamaClient, OllamaClient>(client =>
         {
             client.BaseAddress = new Uri(configuration["Ollama:Host"]!);
-            client.Timeout = TimeSpan.FromSeconds(60);
+            client.Timeout = TimeSpan.FromMinutes(2);
         });
 
         return services;
