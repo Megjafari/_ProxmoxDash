@@ -1,4 +1,3 @@
-
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,16 +9,18 @@ public class ProxmoxPollingService : BackgroundService
 {
     private readonly IProxmoxClient _proxmoxClient;
     private readonly IMemoryCache _cache;
+    private readonly IDashboardNotifier _notifier;
     private readonly ILogger<ProxmoxPollingService> _logger;
-    private const string NodeName = "pve";
 
     public ProxmoxPollingService(
         IProxmoxClient proxmoxClient,
         IMemoryCache cache,
+        IDashboardNotifier notifier,
         ILogger<ProxmoxPollingService> logger)
     {
         _proxmoxClient = proxmoxClient;
         _cache = cache;
+        _notifier = notifier;
         _logger = logger;
     }
 
@@ -29,15 +30,34 @@ public class ProxmoxPollingService : BackgroundService
         {
             try
             {
-                var nodes = await _proxmoxClient.GetNodesAsync();
-                var vms = await _proxmoxClient.GetVmsAsync(NodeName);
-                var lxcs = await _proxmoxClient.GetLxcsAsync(NodeName);
-                var storage = await _proxmoxClient.GetStorageAsync(NodeName);
-
+                var nodes = (await _proxmoxClient.GetNodesAsync()).ToList();
                 _cache.Set("nodes", nodes, TimeSpan.FromSeconds(30));
-                _cache.Set("vms", vms, TimeSpan.FromSeconds(30));
-                _cache.Set("lxcs", lxcs, TimeSpan.FromSeconds(30));
-                _cache.Set("storage", storage, TimeSpan.FromSeconds(60));
+                await _notifier.NotifyNodesUpdatedAsync(nodes);
+
+                var allVms = new List<Core.Models.VmInfo>();
+                var allLxcs = new List<Core.Models.VmInfo>();
+                var allStorage = new List<Core.Models.StorageInfo>();
+
+                foreach (var node in nodes)
+                {
+                    var vms = await _proxmoxClient.GetVmsAsync(node.Name);
+                    allVms.AddRange(vms);
+
+                    var lxcs = await _proxmoxClient.GetLxcsAsync(node.Name);
+                    allLxcs.AddRange(lxcs);
+
+                    var storage = await _proxmoxClient.GetStorageAsync(node.Name);
+                    allStorage.AddRange(storage);
+                }
+
+                _cache.Set("vms", allVms, TimeSpan.FromSeconds(30));
+                await _notifier.NotifyVmsUpdatedAsync(allVms);
+
+                _cache.Set("lxcs", allLxcs, TimeSpan.FromSeconds(30));
+                await _notifier.NotifyLxcsUpdatedAsync(allLxcs);
+
+                _cache.Set("storage", allStorage, TimeSpan.FromSeconds(60));
+                await _notifier.NotifyStorageUpdatedAsync(allStorage);
 
                 _logger.LogInformation("Proxmox data refreshed at {Time}", DateTimeOffset.Now);
             }
