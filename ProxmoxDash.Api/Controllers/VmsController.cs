@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProxmoxDash.Core.Interfaces;
 using ProxmoxDash.Core.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProxmoxDash.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class VmsController : ControllerBase
 {
