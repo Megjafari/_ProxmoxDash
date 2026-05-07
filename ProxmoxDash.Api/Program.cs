@@ -1,10 +1,14 @@
 using ProxmoxDash.Api.Hubs;
 using ProxmoxDash.Core.Interfaces;
 using ProxmoxDash.Infrastructure.Proxmox;
+using ProxmoxDash.Api.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ProxmoxExceptionFilter>();
+});
 builder.Services.AddSignalR();
 builder.Services.AddMemoryCache();
 
