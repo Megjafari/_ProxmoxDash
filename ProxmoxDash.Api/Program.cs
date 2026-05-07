@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using ProxmoxDash.Api.Auth;
 using ProxmoxDash.Api.Filters;
 using ProxmoxDash.Api.Hubs;
@@ -19,6 +20,43 @@ builder.Services.AddMemoryCache();
 builder.Services.AddProxmoxClient(builder.Configuration);
 builder.Services.AddSingleton<IDashboardNotifier, DashboardNotifier>();
 builder.Services.AddHostedService<ProxmoxPollingService>();
+
+// Swagger / OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "ProxmoxDash API",
+        Version = "v1",
+        Description = "Backend API for the ProxmoxDash homelab dashboard."
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Paste your JWT token here. Format: just the token, no 'Bearer' prefix."
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // JWT auth
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
@@ -40,7 +78,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret))
         };
 
-        // Allow JWT in query string for SignalR (WebSocket cannot send custom headers)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -74,6 +111,16 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "ProxmoxDash API v1");
+        options.RoutePrefix = "swagger";
+    });
+}
 
 app.UseHttpsRedirection();
 app.UseCors();
