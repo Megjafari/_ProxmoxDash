@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -11,14 +12,19 @@ public class AuthService : IAuthService
 {
     private readonly JwtSettings _jwtSettings;
     private readonly IConfiguration _configuration;
+    private readonly IRefreshTokenStore _refreshTokenStore;
 
-    public AuthService(IOptions<JwtSettings> jwtSettings, IConfiguration configuration)
+    public AuthService(
+        IOptions<JwtSettings> jwtSettings,
+        IConfiguration configuration,
+        IRefreshTokenStore refreshTokenStore)
     {
         _jwtSettings = jwtSettings.Value;
         _configuration = configuration;
+        _refreshTokenStore = refreshTokenStore;
     }
 
-    public string? Login(string username, string password)
+    public AuthTokens? Login(string username, string password)
     {
         var configuredUsername = _configuration["Auth:Username"];
         var configuredHash = _configuration["Auth:PasswordHash"];
@@ -38,10 +44,40 @@ public class AuthService : IAuthService
             return null;
         }
 
-        return GenerateToken(username);
+        return IssueTokens(username);
     }
 
-    private string GenerateToken(string username)
+    public AuthTokens? Refresh(string refreshToken)
+    {
+        var username = _refreshTokenStore.GetUsername(refreshToken);
+        if (username is null)
+        {
+            return null;
+        }
+
+        // Rotation — invalidate the old refresh token, issue new pair
+        _refreshTokenStore.Revoke(refreshToken);
+
+        return IssueTokens(username);
+    }
+
+    public void Logout(string refreshToken)
+    {
+        _refreshTokenStore.Revoke(refreshToken);
+    }
+
+    private AuthTokens IssueTokens(string username)
+    {
+        var accessToken = GenerateAccessToken(username);
+        var refreshToken = GenerateRefreshToken();
+        var refreshExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpiryDays);
+
+        _refreshTokenStore.Store(refreshToken, username, refreshExpiry);
+
+        return new AuthTokens(accessToken, refreshToken);
+    }
+
+    private string GenerateAccessToken(string username)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -56,10 +92,17 @@ public class AuthService : IAuthService
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpiryMinutes),
             signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private static string GenerateRefreshToken()
+    {
+        var bytes = new byte[64];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes);
     }
 }

@@ -15,18 +15,38 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public ActionResult<LoginResponse> Login([FromBody] LoginRequest request)
+    public ActionResult<AuthTokens> Login([FromBody] LoginRequest request)
     {
-        var token = _authService.Login(request.Username, request.Password);
+        var tokens = _authService.Login(request.Username, request.Password);
 
-        if (token is null)
+        if (tokens is null)
         {
             return Unauthorized(new { error = "Invalid username or password." });
         }
 
-        return Ok(new LoginResponse(token));
+        return Ok(tokens);
+    }
+
+    [HttpPost("refresh")]
+    public ActionResult<AuthTokens> Refresh([FromBody] RefreshRequest request)
+    {
+        var tokens = _authService.Refresh(request.RefreshToken);
+
+        if (tokens is null)
+        {
+            return Unauthorized(new { error = "Invalid or expired refresh token." });
+        }
+
+        return Ok(tokens);
+    }
+
+    [HttpPost("logout")]
+    public IActionResult Logout([FromBody] RefreshRequest request)
+    {
+        _authService.Logout(request.RefreshToken);
+        return NoContent();
     }
 }
 
 public record LoginRequest(string Username, string Password);
-public record LoginResponse(string Token);
+public record RefreshRequest(string RefreshToken);

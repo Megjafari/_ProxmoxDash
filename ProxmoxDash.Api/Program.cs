@@ -19,6 +19,7 @@ builder.Services.AddMemoryCache();
 
 builder.Services.AddProxmoxClient(builder.Configuration);
 builder.Services.AddSingleton<IDashboardNotifier, DashboardNotifier>();
+builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
 builder.Services.AddHostedService<ProxmoxPollingService>();
 
 // Swagger / OpenAPI
