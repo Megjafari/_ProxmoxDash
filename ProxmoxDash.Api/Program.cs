@@ -7,6 +7,7 @@ using ProxmoxDash.Api.Filters;
 using ProxmoxDash.Api.Hubs;
 using ProxmoxDash.Core.Interfaces;
 using ProxmoxDash.Infrastructure.Proxmox;
+using ProxmoxDash.Infrastructure.Terminal;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,7 @@ builder.Services.AddMemoryCache();
 
 builder.Services.AddProxmoxClient(builder.Configuration);
 builder.Services.AddSingleton<IDashboardNotifier, DashboardNotifier>();
+builder.Services.AddTerminalService();
 builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
 builder.Services.AddHostedService<ProxmoxPollingService>();
 
@@ -129,5 +131,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<DashboardHub>("/hubs/dashboard");
+app.MapHub<TerminalHub>("/hubs/terminal");
 
 app.Run();
