@@ -1,65 +1,78 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using ProxmoxDash.Core.Interfaces;
-using ProxmoxDash.Core.Models;
 using Renci.SshNet;
 
 namespace ProxmoxDash.Infrastructure.Terminal;
 
 public class TerminalService : ITerminalService
 {
-    private readonly ConcurrentDictionary<string, SshClient> _sessions = new();
-    private readonly ConcurrentDictionary<string, ShellStream> _streams = new();
     private readonly ILogger<TerminalService> _logger;
+    private readonly ConcurrentDictionary<string, TerminalSession> _sessions = new();
 
     public TerminalService(ILogger<TerminalService> logger)
     {
         _logger = logger;
     }
 
-    public async Task<string> CreateSessionAsync(string host, int port, string username, string password)
+    public Task<string> CreateSessionAsync(TerminalConnectionRequest request, Func<string, Task> onOutput)
     {
         var sessionId = Guid.NewGuid().ToString();
-        var client = new SshClient(host, port, username, password);
 
-        await Task.Run(() => client.Connect());
+        var connectionInfo = new ConnectionInfo(
+            request.Host,
+            request.Port,
+            request.Username,
+            new PasswordAuthenticationMethod(request.Username, request.Password)
+        );
 
-        var stream = client.CreateShellStream("xterm", 80, 24, 800, 600, 1024);
+        var client = new SshClient(connectionInfo);
+        client.Connect();
 
-        _sessions[sessionId] = client;
-        _streams[sessionId] = stream;
+        var shell = client.CreateShellStream(
+            terminalName: "xterm-256color",
+            columns: (uint)request.Columns,
+            rows: (uint)request.Rows,
+            width: 800,
+            height: 600,
+            bufferSize: 1024
+        );
 
-        _logger.LogInformation("Terminal session {SessionId} created for {Host}", sessionId, host);
+        var session = new TerminalSession(sessionId, client, shell, onOutput);
+        _sessions[sessionId] = session;
 
-        return sessionId;
+        // Start background pump that streams shell output to the callback
+        session.StartOutputPump();
+
+        _logger.LogInformation("Terminal session {SessionId} opened to {Host}:{Port}",
+            sessionId, request.Host, request.Port);
+
+        return Task.FromResult(sessionId);
     }
 
-    public async Task SendInputAsync(string sessionId, string input)
+    public Task SendInputAsync(string sessionId, string input)
     {
-        if (_streams.TryGetValue(sessionId, out var stream))
+        if (_sessions.TryGetValue(sessionId, out var session))
         {
-            await Task.Run(() => stream.Write(input));
+            session.Shell.Write(input);
         }
+        return Task.CompletedTask;
     }
 
-    public async Task<string> ReadOutputAsync(string sessionId)
+    public Task ResizeAsync(string sessionId, int columns, int rows)
     {
-        if (_streams.TryGetValue(sessionId, out var stream))
-        {
-            return await Task.Run(() => stream.Read());
-        }
-        return string.Empty;
+        // ShellStream resize is not supported in all SSH.NET versions.
+        // Tracked as known limitation; client-side wraps text instead.
+        return Task.CompletedTask;
     }
 
-    public async Task CloseSessionAsync(string sessionId)
+    public Task CloseSessionAsync(string sessionId)
     {
-        if (_sessions.TryRemove(sessionId, out var client))
+        if (_sessions.TryRemove(sessionId, out var session))
         {
-            _streams.TryRemove(sessionId, out var stream);
-            stream?.Dispose();
-            await Task.Run(() => client.Disconnect());
-            client.Dispose();
+            session.Dispose();
             _logger.LogInformation("Terminal session {SessionId} closed", sessionId);
         }
+        return Task.CompletedTask;
     }
 }
