@@ -1,3 +1,6 @@
+[![CI](https://github.com/Megjafari/_ProxmoxDash/actions/workflows/ci.yml/badge.svg)](https://github.com/Megjafari/_ProxmoxDash/actions/workflows/ci.yml)
+
+
 # ProxmoxDash
 
 A self-hosted dashboard for Proxmox homelabs. Real-time view of nodes,
