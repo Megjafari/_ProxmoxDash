@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ProxmoxDash.Core.Interfaces;
 using Renci.SshNet;
@@ -7,23 +8,31 @@ namespace ProxmoxDash.Infrastructure.Terminal;
 
 public class TerminalService : ITerminalService
 {
+    private readonly IConfiguration _configuration;
     private readonly ILogger<TerminalService> _logger;
     private readonly ConcurrentDictionary<string, TerminalSession> _sessions = new();
 
-    public TerminalService(ILogger<TerminalService> logger)
+    public TerminalService(IConfiguration configuration, ILogger<TerminalService> logger)
     {
+        _configuration = configuration;
         _logger = logger;
     }
 
     public Task<string> CreateSessionAsync(TerminalConnectionRequest request, Func<string, Task> onOutput)
     {
+        var privateKeyPath = _configuration["Ssh:PrivateKeyPath"]
+            ?? throw new InvalidOperationException("Ssh:PrivateKeyPath is not configured");
+        var username = _configuration["Ssh:Username"]
+            ?? throw new InvalidOperationException("Ssh:Username is not configured");
+
         var sessionId = Guid.NewGuid().ToString();
 
+        var keyFile = new PrivateKeyFile(privateKeyPath);
         var connectionInfo = new ConnectionInfo(
             request.Host,
             request.Port,
-            request.Username,
-            new PasswordAuthenticationMethod(request.Username, request.Password)
+            username,
+            new PrivateKeyAuthenticationMethod(username, keyFile)
         );
 
         var client = new SshClient(connectionInfo);
@@ -41,7 +50,6 @@ public class TerminalService : ITerminalService
         var session = new TerminalSession(sessionId, client, shell, onOutput);
         _sessions[sessionId] = session;
 
-        // Start background pump that streams shell output to the callback
         session.StartOutputPump();
 
         _logger.LogInformation("Terminal session {SessionId} opened to {Host}:{Port}",
