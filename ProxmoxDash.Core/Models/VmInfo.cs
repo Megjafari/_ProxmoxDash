@@ -9,5 +9,6 @@ public record VmInfo(
     long MemoryMax,
     int CpuCount,
     string Type,
-    string Node
+    string Node,
+    string? IpAddress
 );
