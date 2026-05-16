@@ -9,14 +9,19 @@ namespace ProxmoxDash.Api.Hubs;
 public class TerminalHub : Hub
 {
     private readonly ITerminalService _terminalService;
+    private readonly IHubContext<TerminalHub> _hubContext;
     private readonly ILogger<TerminalHub> _logger;
 
     // Maps SignalR connection id → terminal session id, so we can clean up on disconnect
     private static readonly ConcurrentDictionary<string, string> ConnectionSessions = new();
 
-    public TerminalHub(ITerminalService terminalService, ILogger<TerminalHub> logger)
+    public TerminalHub(
+        ITerminalService terminalService,
+        IHubContext<TerminalHub> hubContext,
+        ILogger<TerminalHub> logger)
     {
         _terminalService = terminalService;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
@@ -30,9 +35,13 @@ public class TerminalHub : Hub
             await _terminalService.CloseSessionAsync(existingSessionId);
         }
 
+        // Capture the hub context (long-lived) instead of `this` (per-invocation),
+        // since the Hub instance is disposed once Connect returns.
+        var hubContext = _hubContext;
+
         var sessionId = await _terminalService.CreateSessionAsync(request, async output =>
         {
-            await Clients.Client(connectionId).SendAsync("Output", output);
+            await hubContext.Clients.Client(connectionId).SendAsync("Output", output);
         });
 
         ConnectionSessions[connectionId] = sessionId;
@@ -49,6 +58,7 @@ public class TerminalHub : Hub
         {
             return _terminalService.SendInputAsync(sessionId, data);
         }
+        _logger.LogWarning("TerminalHub.Input: no session for connection {ConnectionId}", Context.ConnectionId);
         return Task.CompletedTask;
     }
 
