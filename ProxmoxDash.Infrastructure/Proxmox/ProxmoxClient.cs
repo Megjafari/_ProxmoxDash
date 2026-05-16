@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ProxmoxDash.Core.Interfaces;
 using ProxmoxDash.Core.Models;
@@ -10,11 +10,13 @@ public class ProxmoxClient : IProxmoxClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<ProxmoxClient> _logger;
+    private readonly Dictionary<int, string> _vmHosts;
 
-    public ProxmoxClient(HttpClient httpClient, ILogger<ProxmoxClient> logger)
+    public ProxmoxClient(HttpClient httpClient, IConfiguration configuration, ILogger<ProxmoxClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _vmHosts = configuration.GetSection("VmHosts").Get<Dictionary<int, string>>() ?? new();
     }
 
     public async Task<IEnumerable<NodeStatus>> GetNodesAsync()
@@ -56,7 +58,8 @@ public class ProxmoxClient : IProxmoxClient
             v.Maxmem,
             v.Cpus,
             "qemu",
-            node
+            node,
+            _vmHosts.GetValueOrDefault(v.Vmid)
         )) ?? [];
     }
 
@@ -72,7 +75,8 @@ public class ProxmoxClient : IProxmoxClient
             v.Maxmem,
             v.Cpus,
             "lxc",
-            node
+            node,
+            _vmHosts.GetValueOrDefault(v.Vmid)
         )) ?? [];
     }
 
