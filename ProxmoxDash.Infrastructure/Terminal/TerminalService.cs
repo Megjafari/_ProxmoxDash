@@ -22,8 +22,17 @@ public class TerminalService : ITerminalService
     {
         var privateKeyPath = _configuration["Ssh:PrivateKeyPath"]
             ?? throw new InvalidOperationException("Ssh:PrivateKeyPath is not configured");
-        var username = _configuration["Ssh:Username"]
+        var defaultUsername = _configuration["Ssh:Username"]
             ?? throw new InvalidOperationException("Ssh:Username is not configured");
+
+        // Reverse-lookup the vmId for this host so we can pick a per-VM username.
+        // Falls back to the global default when no mapping exists.
+        var vmHosts = _configuration.GetSection("VmHosts").Get<Dictionary<string, string>>() ?? new();
+        var vmUsers = _configuration.GetSection("VmUsers").Get<Dictionary<string, string>>() ?? new();
+        var vmId = vmHosts.FirstOrDefault(kvp => kvp.Value == request.Host).Key;
+        var username = (vmId != null && vmUsers.TryGetValue(vmId, out var perVmUser))
+            ? perVmUser
+            : defaultUsername;
 
         var sessionId = Guid.NewGuid().ToString();
 
